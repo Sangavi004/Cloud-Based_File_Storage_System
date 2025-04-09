@@ -1,0 +1,308 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <title>Cloud Storage Upload</title>
+  <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.5.0/css/all.min.css" />
+  <style>
+    body {
+      font-family: Arial, sans-serif;
+      margin: 40px;
+      background-color: #f8f9fa;
+    }
+
+    h2, h3 {
+      color: #333;
+    }
+
+    input[type="file"],
+    input[type="text"],
+    select,
+    button {
+      font-size: 16px;
+    }
+
+    .download-btn, .view-btn {
+      background-color: green;
+      color: white;
+      padding: 5px 10px;
+      border: none;
+      margin-top: 10px;
+      margin-right: 10px;
+      text-decoration: none;
+      display: inline-block;
+      border-radius: 4px;
+    }
+
+    .delete-btn {
+      background-color: red;
+      color: white;
+      padding: 5px 10px;
+      border: none;
+      margin-top: 10px;
+      text-decoration: none;
+      display: inline-block;
+      border-radius: 4px;
+      cursor: pointer;
+    }
+
+    .btn-icon i {
+      margin-right: 5px;
+      color: inherit;
+    }
+
+    img, .file-preview {
+      max-width: 150px;
+      display: block;
+      margin-bottom: 5px;
+    }
+
+    .file-card {
+      border: 1px solid #ccc;
+      border-radius: 8px;
+      padding: 10px;
+      margin-bottom: 20px;
+      max-width: 180px;
+      background: white;
+      box-shadow: 0 2px 5px rgba(0,0,0,0.1);
+    }
+
+    .file-grid {
+      display: flex;
+      flex-wrap: wrap;
+      gap: 20px;
+    }
+
+    .status {
+      font-weight: bold;
+      margin-top: 10px;
+    }
+
+    .file-count {
+      font-weight: bold;
+      margin-top: 20px;
+      margin-bottom: 10px;
+      color: #333;
+    }
+
+    .timestamp {
+      color: gray;
+      font-size: 0.85em;
+    }
+
+    .icon {
+      font-size: 40px;
+      margin-bottom: 5px;
+      color: #888;
+    }
+  </style>
+</head>
+<body>
+
+  <h2>Upload File</h2>
+  <input type="file" id="fileInput">
+  <button onclick="uploadFile()">Upload</button>
+  <p id="uploadStatus" class="status"></p>
+
+  <h3>Uploaded Files:</h3>
+
+  <div style="margin: 20px 0;">
+    <input type="text" id="searchInput" placeholder="Search files by name..." style="padding: 6px; width: 200px;" oninput="fetchUploadedFiles()" />
+    <select id="sortSelect" onchange="fetchUploadedFiles()" style="padding: 6px; margin-left: 10px;">
+      <option value="newest">Newest First</option>
+      <option value="oldest">Oldest First</option>
+      <option value="name_asc">Name (A-Z)</option>
+      <option value="name_desc">Name (Z-A)</option>
+    </select>
+  </div>
+
+  <button onclick="fetchUploadedFiles()">View Uploaded Files</button>
+  <p id="fileCount" class="file-count"></p>
+  <div id="fileList" class="file-grid"></div>
+
+  <script>
+    async function uploadFile() {
+      const fileInput = document.getElementById('fileInput');
+      const file = fileInput.files[0];
+      const status = document.getElementById('uploadStatus');
+
+      if (!file) {
+        alert('Choose a file first!');
+        return;
+      }
+
+      status.textContent = 'Uploading...';
+      status.style.color = 'orange';
+
+      const formData = new FormData();
+      formData.append('file', file);
+
+      try {
+        const res = await fetch('http://localhost:5000/upload', {
+          method: 'POST',
+          body: formData,
+        });
+
+        const data = await res.json();
+        if (data.error) throw new Error(data.error);
+
+        status.textContent = 'Uploaded!';
+        status.style.color = 'green';
+        setTimeout(() => status.textContent = '', 3000);
+
+        fetchUploadedFiles();
+      } catch (error) {
+        status.textContent = 'Upload failed!';
+        status.style.color = 'red';
+        console.error(error);
+        setTimeout(() => status.textContent = '', 3000);
+      }
+    }
+
+    function timeAgo(dateString) {
+      const now = new Date();
+      const uploadedDate = new Date(dateString);
+      const diff = Math.floor((now - uploadedDate) / 1000);
+      if (diff < 60) return `${diff} second${diff !== 1 ? 's' : ''} ago`;
+      if (diff < 3600) return `${Math.floor(diff / 60)} minute${diff < 120 ? '' : 's'} ago`;
+      if (diff < 86400) return `${Math.floor(diff / 3600)} hour${diff < 7200 ? '' : 's'} ago`;
+      return `${Math.floor(diff / 86400)} day${diff < 172800 ? '' : 's'} ago`;
+    }
+
+    function getFileIcon(filename) {
+      const ext = filename.split('.').pop().toLowerCase();
+      if (['jpg', 'jpeg', 'png', 'gif', 'webp'].includes(ext)) return null;
+      if (['pdf'].includes(ext)) return '<i class="fas fa-file-pdf icon"></i>';
+      if (['doc', 'docx'].includes(ext)) return '<i class="fas fa-file-word icon"></i>';
+      if (['xls', 'xlsx'].includes(ext)) return '<i class="fas fa-file-excel icon"></i>';
+      if (['mp3', 'wav'].includes(ext)) return '<i class="fas fa-file-audio icon"></i>';
+      if (['mp4', 'mov', 'avi'].includes(ext)) return '<i class="fas fa-file-video icon"></i>';
+      if (['zip', 'rar'].includes(ext)) return '<i class="fas fa-file-archive icon"></i>';
+      return '<i class="fas fa-file icon"></i>';
+    }
+
+    function generateViewButton(url, name) {
+      const ext = name.split('.').pop().toLowerCase();
+      const viewableExt = ['jpg', 'jpeg', 'png', 'gif', 'webp', 'pdf', 'txt'];
+
+      if (viewableExt.includes(ext)) {
+        return `
+          <a href="${url}" target="_blank" class="view-btn btn-icon">
+            <i class="fa-solid fa-eye"></i> View
+          </a>`;
+      }
+
+      if (ext === 'doc' || ext === 'docx') {
+        const gview = `https://docs.google.com/viewer?url=${encodeURIComponent(url)}&embedded=true`;
+        return `
+          <a href="${gview}" target="_blank" class="view-btn btn-icon">
+            <i class="fa-solid fa-eye"></i> View (Doc)
+          </a>`;
+      }
+
+      return `
+        <a href="${url}" target="_blank" class="view-btn btn-icon">
+          <i class="fa-solid fa-eye"></i> Open
+        </a>`;
+    }
+
+    async function fetchUploadedFiles() {
+      const search = document.getElementById('searchInput')?.value || '';
+      const sort = document.getElementById('sortSelect')?.value || 'newest';
+
+      try {
+        const res = await fetch(`http://localhost:5000/files?search=${encodeURIComponent(search)}&sort=${sort}`);
+        const files = await res.json();
+
+        const fileList = document.getElementById('fileList');
+        const fileCount = document.getElementById('fileCount');
+        fileList.innerHTML = '';
+
+        fileCount.textContent = `Total Files: ${files.length}`;
+
+        if (files.length === 0) {
+          const noFilesMsg = document.createElement('p');
+          const searchValue = search.trim();
+          noFilesMsg.textContent = searchValue ? `No matching files found for "${searchValue}"` : 'No files uploaded yet!';
+          noFilesMsg.style.color = 'gray';
+          fileList.appendChild(noFilesMsg);
+          return;
+        }
+
+        files.forEach(file => {
+          const container = document.createElement('div');
+          container.className = 'file-card';
+
+          const isImage = file.url.match(/\.(jpg|jpeg|png|gif|webp)$/i);
+          if (isImage) {
+            const img = document.createElement('img');
+            img.src = file.url;
+            img.alt = file.original_filename;
+            container.appendChild(img);
+          } else {
+            const iconHTML = getFileIcon(file.original_filename);
+            const preview = document.createElement('div');
+            preview.className = 'file-preview';
+            preview.innerHTML = iconHTML || '[File Preview Not Available]';
+            container.appendChild(preview);
+          }
+
+          const name = document.createElement('p');
+          name.textContent = file.original_filename;
+          container.appendChild(name);
+
+          const uploadedTime = new Date(file.uploadedAt || file.uploaded_at || new Date());
+          const timeText = document.createElement('div');
+          timeText.className = 'timestamp';
+          timeText.textContent = timeAgo(uploadedTime);
+          container.appendChild(timeText);
+
+          const viewBtnHTML = generateViewButton(file.url, file.original_filename);
+          container.insertAdjacentHTML('beforeend', viewBtnHTML);
+
+          const ext = file.original_filename.split('.').pop().toLowerCase();
+          const isPDF = ext === 'pdf';
+          const forceDownloadUrl = isPDF
+            ? `${file.url}?attachment=true`
+            : file.url.replace('/upload/', '/upload/fl_attachment/');
+
+          const downloadBtn = document.createElement('a');
+          downloadBtn.href = forceDownloadUrl;
+          downloadBtn.innerHTML = '<i class="fas fa-download"></i> Download';
+          downloadBtn.className = 'download-btn btn-icon';
+          downloadBtn.setAttribute('download', '');
+          container.appendChild(downloadBtn);
+
+          const deleteBtn = document.createElement('button');
+          deleteBtn.innerHTML = '<i class="fas fa-trash"></i> Delete';
+          deleteBtn.className = 'delete-btn btn-icon';
+          deleteBtn.onclick = async () => {
+            const confirmDelete = confirm(`Are you sure you want to delete "${file.original_filename}"?`);
+            if (!confirmDelete) return;
+
+            try {
+              const res = await fetch(`http://localhost:5000/delete/${encodeURIComponent(file.public_id)}`, {
+                method: 'DELETE'
+              });
+
+              const result = await res.json();
+              alert(result.message || 'Deleted!');
+              setTimeout(fetchUploadedFiles, 500);
+            } catch (err) {
+              alert('Delete failed!');
+              console.error('❌ Delete error:', err);
+            }
+          };
+          container.appendChild(deleteBtn);
+
+          fileList.appendChild(container);
+        });
+      } catch (err) {
+        console.error('❌ Error fetching files:', err);
+        alert('Something went wrong while fetching files.');
+      }
+    }
+  </script>
+
+</body>
+</html>
