@@ -138,7 +138,7 @@
       formData.append('file', file);
 
       try {
-        const res = await fetch('http://localhost:5000/upload', {
+        const res = await fetch('/upload', {
           method: 'POST',
           body: formData,
         });
@@ -211,7 +211,7 @@
       const sort = document.getElementById('sortSelect')?.value || 'newest';
 
       try {
-        const res = await fetch(`http://localhost:5000/files?search=${encodeURIComponent(search)}&sort=${sort}`);
+        const res = await fetch(`/files?search=${encodeURIComponent(search)}&sort=${sort}`);
         const files = await res.json();
 
         const fileList = document.getElementById('fileList');
@@ -281,7 +281,7 @@
             if (!confirmDelete) return;
 
             try {
-              const res = await fetch(`http://localhost:5000/delete/${encodeURIComponent(file.public_id)}`, {
+              const res = await fetch(`/delete/${encodeURIComponent(file.public_id)}`, {
                 method: 'DELETE'
               });
 
